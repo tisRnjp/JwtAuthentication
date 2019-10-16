@@ -18,11 +18,11 @@ namespace TokenAuthentication.Controllers
     [ApiController]
     public class ValuesController : ControllerBase
     {
-        private readonly IHttpContextAccessor _httpContext;
+        private readonly IUserDataService _userDataService;
 
-        public ValuesController(IHttpContextAccessor httpContext)
+        public ValuesController(IUserDataService userDataService)
         {
-            _httpContext = httpContext;
+            _userDataService = userDataService;
         }
 
         // GET api/values
@@ -39,13 +39,26 @@ namespace TokenAuthentication.Controllers
             return "value";
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Policy = "AdminUser")]
         [HttpGet("test")]
         public ActionResult<string> test()
         {
-            var user = _httpContext.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            var user = User.FindFirst(ClaimTypes.Name).Value;
+            var role = User.FindFirst(ClaimTypes.Role).Value;
+            var valid = User.FindFirst("Valid").Value;
             //var user = Thread.CurrentPrincipal.Identity.Name;
-            return "test " + user;
+            return $"Username: {user}\nRole: {role}\nValid: {valid}";
+        }
+
+        [Authorize(Policy = "SeniorStaff")]
+        [HttpGet("{id}")]
+        [Route("designation")]
+        public ActionResult<string> GetDesignation()
+        {
+            var user = User.FindFirst(ClaimTypes.Name).Value;
+            var designation = _userDataService.GetDesignations().Find(d => d.Id.ToString() == User.FindFirst("Designation").Value).DesignationName;
+
+            return $"Username: {user}\nDesignation: {designation}";
         }
 
         // POST api/values
@@ -71,8 +84,7 @@ namespace TokenAuthentication.Controllers
         {
             try
             {
-                var userDataService = new UserDataService();
-                var users = userDataService.GetUsers();
+                var users = _userDataService.GetUsers();
                 var user = users.Find(u => u.Username == model.Username);
 
                 if(user != null)
@@ -92,6 +104,8 @@ namespace TokenAuthentication.Controllers
                         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                         new Claim(ClaimTypes.Role, "Admin"),
                         new Claim(ClaimTypes.Name, user.Username),
+                        new Claim("Valid", "True"),
+                        new Claim("Designation", "1")
                     };
 
                     var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("ThisIsASecretKey."));

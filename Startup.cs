@@ -15,6 +15,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using TokenAuthentication.Requirements;
+using TokenAuthentication.Service;
 
 namespace TokenAuthentication
 {
@@ -32,6 +34,7 @@ namespace TokenAuthentication
         {
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
             services.AddHttpContextAccessor();
+            services.AddTransient<IUserDataService, UserDataService>();
 
             services.AddAuthentication(x =>
             {
@@ -44,12 +47,22 @@ namespace TokenAuthentication
                  x.SaveToken = true;
                  x.TokenValidationParameters = new TokenValidationParameters
                  {
-                     ValidateIssuerSigningKey = true,
+                     ValidateIssuerSigningKey = false,
                      IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("ThisIsASecretKey.")),
                      ValidateIssuer = false,
                      ValidateAudience = false
                  };
+                 //x.SecurityTokenValidators.Add();
              });
+
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy("AdminUser", policy => policy.RequireRole("Admin").RequireAssertion(context =>
+                    context.User.HasClaim(c => c.Type == "Valid" && c.Value == "True")
+                    ));
+
+                options.AddPolicy("SeniorStaff", policy => policy.Requirements.Add(new SeniorStaffRequirement()));
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
